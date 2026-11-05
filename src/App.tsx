@@ -4,6 +4,7 @@ import { QuestionnaireSection } from './components/QuestionnaireSection';
 import { PromptViewer } from './components/PromptViewer';
 import { TTSStudio } from './components/TTSStudio';
 import { DirectorChat } from './components/DirectorChat';
+import { PublishModal } from './components/PublishModal';
 import { PRESET_PACKAGES } from './data/questionnaire';
 import { DEFAULT_PROMPT_RESULT } from './data/defaultPrompt';
 import { DirectorPromptResult } from './types';
@@ -11,11 +12,17 @@ import { Sparkles, Film, Volume2, Clapperboard, CheckCircle, AlertTriangle } fro
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<'questionnaire' | 'prompt' | 'tts' | 'chat'>('questionnaire');
+  const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
   const [answers, setAnswers] = useState<Record<string, string>>(PRESET_PACKAGES[0].answers);
   const [customNotes, setCustomNotes] = useState('');
   const [promptResult, setPromptResult] = useState<DirectorPromptResult>(DEFAULT_PROMPT_RESULT);
   const [isGenerating, setIsGenerating] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // User's authentic recorded voice & recognized profile
+  const [userRealVoiceUrl, setUserRealVoiceUrl] = useState<string | null>(null);
+  const [userVoiceTranscription, setUserVoiceTranscription] = useState<string | null>(null);
+  const [userClonedProfile, setUserClonedProfile] = useState<any | null>(null);
 
   // Selected TTS line for playback
   const [selectedTTSData, setSelectedTTSData] = useState<{
@@ -27,6 +34,14 @@ export default function App() {
     style: DEFAULT_PROMPT_RESULT.ttsReadyLines[0].suggestedStyle,
     voice: DEFAULT_PROMPT_RESULT.ttsReadyLines[0].suggestedVoice,
   });
+
+  const handleApplyRealVoiceToStory = (audioUrl: string, transcription?: string) => {
+    setUserRealVoiceUrl(audioUrl);
+    if (transcription) {
+      setUserVoiceTranscription(transcription);
+    }
+    setActiveTab('prompt');
+  };
 
   const handleGeneratePrompt = async () => {
     setIsGenerating(true);
@@ -68,8 +83,8 @@ export default function App() {
   const handlePlayTTSLine = (text: string, style?: string, voice?: string) => {
     setSelectedTTSData({
       text,
-      style: style || 'Pained 20-year-old Kurdish youth suffering from severe headache',
-      voice: voice || 'Fenrir',
+      style: style || 'Warm, calm, empathetic educational mentor and teacher speaking in Kurdish',
+      voice: voice || 'Charon',
     });
     setActiveTab('tts');
   };
@@ -82,6 +97,7 @@ export default function App() {
         setActiveTab={setActiveTab}
         hasGeneratedPrompt={true}
         isPlayingAnyAudio={false}
+        onOpenPublish={() => setIsPublishModalOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -120,6 +136,9 @@ export default function App() {
             promptResult={promptResult}
             onPlayTTSLine={handlePlayTTSLine}
             onOpenTTSStudio={() => setActiveTab('tts')}
+            userRealVoiceUrl={userRealVoiceUrl}
+            userVoiceTranscription={userVoiceTranscription}
+            onOpenPublish={() => setIsPublishModalOpen(true)}
           />
         )}
 
@@ -129,6 +148,9 @@ export default function App() {
             initialText={selectedTTSData.text}
             initialStyle={selectedTTSData.style}
             initialVoice={selectedTTSData.voice}
+            initialRealVoiceUrl={userRealVoiceUrl}
+            initialVoiceProfile={userClonedProfile}
+            onApplyRealVoiceToStory={handleApplyRealVoiceToStory}
           />
         )}
 
@@ -152,6 +174,13 @@ export default function App() {
           </div>
         </div>
       </footer>
+      {/* Publish & Export Modal */}
+      <PublishModal
+        isOpen={isPublishModalOpen}
+        onClose={() => setIsPublishModalOpen(false)}
+        promptResult={promptResult}
+        userRealVoiceUrl={userRealVoiceUrl}
+      />
     </div>
   );
 }

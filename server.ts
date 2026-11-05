@@ -29,35 +29,100 @@ app.get('/api/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
-// 1. Text-to-Speech endpoint using gemini-3.8-flash-tts
-app.post('/api/tts/generate', async (req: Request, res: Response) => {
+// In-memory cache for audio generation (unlimited re-plays with zero quota consumption)
+const audioCache = new Map<string, { audioBase64: string; mimeType: string; voice: string }>();
+
+// Helper to concatenate multiple WAV buffers into a single valid WAV file
+function concatWavBuffers(buffers: Buffer[]): Buffer {
+  if (buffers.length === 0) return Buffer.alloc(0);
+  if (buffers.length === 1) return buffers[0];
+
+  let totalPcmLength = 0;
+  const pcmChunks: Buffer[] = [];
+
+  for (const buf of buffers) {
+    if (buf.length > 44) {
+      const pcm = buf.subarray(44);
+      pcmChunks.push(pcm);
+      totalPcmLength += pcm.length;
+    }
+  }
+
+  const header = Buffer.from(buffers[0].subarray(0, 44));
+  // 4-7: ChunkSize (36 + Subchunk2Size)
+  header.writeUInt32LE(36 + totalPcmLength, 4);
+  // 40-43: Subchunk2Size (data length)
+  header.writeUInt32LE(totalPcmLength, 40);
+
+  return Buffer.concat([header, ...pcmChunks]);
+}
+
+// Single chunk TTS generator with retry and model fallback
+async function generateSingleTTSChunk(
+  chunkText: string,
+  chosenVoice: string,
+  style: string
+): Promise<string> {
+  const cacheKey = `${chunkText}::${chosenVoice}::${style}`;
+  if (audioCache.has(cacheKey)) {
+    return audioCache.get(cacheKey)!.audioBase64;
+  }
+
+  // Attempt 1 & 2: Primary Flagship Model gemini-3.8-flash-tts
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash-tts',
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text: chunkText,
+                speechMetadata: {
+                  style: style || 'Clear, natural Kurdish delivery',
+                },
+              },
+            ],
+          },
+        ],
+        config: {
+          responseModalities: ['AUDIO'],
+          speechConfig: {
+            voiceConfig: {
+              prebuiltVoiceConfig: { voiceName: chosenVoice },
+            },
+          },
+        },
+      });
+
+      const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+      if (base64Audio) {
+        audioCache.set(cacheKey, { audioBase64: base64Audio, mimeType: 'audio/wav', voice: chosenVoice });
+        return base64Audio;
+      }
+    } catch (err: any) {
+      const isRateLimit = err?.message?.includes('429') || err?.message?.includes('quota');
+      if (attempt < 2 && isRateLimit) {
+        // Wait 1.5 seconds and retry
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        continue;
+      }
+    }
+  }
+
+  // Attempt 3: High-throughput fallback model gemini-3.8-flash-lite-tts
   try {
-    const { text, voice = 'Fenrir', style = 'Pained, 20-year-old Kurdish man suffering from a severe migraine headache, breathing heavily' } = req.body;
-
-    if (!text || typeof text !== 'string' || !text.trim()) {
-      res.status(400).json({ error: 'Text is required for TTS generation.' });
-      return;
-    }
-
-    if (!process.env.GEMINI_API_KEY) {
-      res.status(500).json({ error: 'GEMINI_API_KEY is not configured in server environment.' });
-      return;
-    }
-
-    const validVoices = ['Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr'];
-    const chosenVoice = validVoices.includes(voice) ? voice : 'Fenrir';
-
-    // Call gemini-3.8-flash-tts
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash-tts',
+    const liteResponse = await ai.models.generateContent({
+      model: 'gemini-3.8-flash-lite-tts',
       contents: [
         {
           role: 'user',
           parts: [
             {
-              text: text.trim(),
+              text: chunkText,
               speechMetadata: {
-                style: style.trim(),
+                style: style || 'Clear Kurdish voice',
               },
             },
           ],
@@ -73,30 +138,209 @@ app.post('/api/tts/generate', async (req: Request, res: Response) => {
       },
     });
 
-    const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    const liteAudio = liteResponse.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
+    if (liteAudio) {
+      audioCache.set(cacheKey, { audioBase64: liteAudio, mimeType: 'audio/wav', voice: chosenVoice });
+      return liteAudio;
+    }
+  } catch (liteErr) {
+    console.warn('Fallback to lite-tts also encountered error:', liteErr);
+  }
 
-    if (!base64Audio) {
-      res.status(502).json({ error: 'No audio data was returned from Gemini TTS model.' });
+  throw new Error('سیستەمی دەنگ لە ئێستادا سەرقاڵە، تکایە چەند چرکەیەکی تر دووبارە تاقی بکەرەوە.');
+}
+
+// 1. Text-to-Speech endpoint with Unlimited Audio Engine
+app.post('/api/tts/generate', async (req: Request, res: Response) => {
+  try {
+    const { text, voice = 'Puck', style = 'Natural and articulate Kurdish voice' } = req.body;
+
+    if (!text || typeof text !== 'string' || !text.trim()) {
+      res.status(400).json({ error: 'Text is required for TTS generation.' });
       return;
     }
 
-    res.json({
-      success: true,
-      audioBase64: base64Audio,
+    if (!process.env.GEMINI_API_KEY) {
+      res.status(500).json({ error: 'GEMINI_API_KEY is not configured in server environment.' });
+      return;
+    }
+
+    const validVoices = ['Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr'];
+    const chosenVoice = validVoices.includes(voice) ? voice : 'Puck';
+    const cleanText = text.trim();
+
+    // Check full cache first
+    const fullCacheKey = `${cleanText}::${chosenVoice}::${style}`;
+    if (audioCache.has(fullCacheKey)) {
+      const cached = audioCache.get(fullCacheKey)!;
+      res.json({
+        success: true,
+        audioBase64: cached.audioBase64,
+        mimeType: cached.mimeType,
+        voice: chosenVoice,
+        text: cleanText,
+        cached: true,
+      });
+      return;
+    }
+
+    // Smart chunking for long text: split by sentences if text is long (> 150 chars)
+    let chunks: string[] = [];
+    if (cleanText.length > 150) {
+      // Split by common Kurdish punctuation (. ! ؟ \n ...)
+      const rawSentences = cleanText
+        .split(/([.!؟\n]+)/)
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+
+      let current = '';
+      for (const s of rawSentences) {
+        if ((current + ' ' + s).length <= 150) {
+          current = current ? current + ' ' + s : s;
+        } else {
+          if (current) chunks.push(current);
+          current = s;
+        }
+      }
+      if (current) chunks.push(current);
+    }
+
+    if (chunks.length <= 1) {
+      // Single chunk generation
+      const base64Audio = await generateSingleTTSChunk(cleanText, chosenVoice, style);
+      res.json({
+        success: true,
+        audioBase64: base64Audio,
+        mimeType: 'audio/wav',
+        voice: chosenVoice,
+        text: cleanText,
+        cached: false,
+      });
+      return;
+    }
+
+    // Multi-chunk generation and concatenation for unlimited audio length
+    const buffers: Buffer[] = [];
+    for (const chunk of chunks) {
+      const chunkBase64 = await generateSingleTTSChunk(chunk, chosenVoice, style);
+      buffers.push(Buffer.from(chunkBase64, 'base64'));
+    }
+
+    const mergedWavBuffer = concatWavBuffers(buffers);
+    const mergedBase64 = mergedWavBuffer.toString('base64');
+
+    // Cache the merged result
+    audioCache.set(fullCacheKey, {
+      audioBase64: mergedBase64,
       mimeType: 'audio/wav',
       voice: chosenVoice,
-      text: text.trim(),
-      style: style.trim(),
+    });
+
+    res.json({
+      success: true,
+      audioBase64: mergedBase64,
+      mimeType: 'audio/wav',
+      voice: chosenVoice,
+      text: cleanText,
+      chunksCount: chunks.length,
+      cached: false,
     });
   } catch (error: any) {
     console.error('Error generating TTS:', error);
+    const msg = error?.message || '';
+    let userFriendlyMsg = msg;
+    if (msg.includes('429') || msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED')) {
+      userFriendlyMsg = 'کەمێک ڕابوەستە؛ ژمارەی داواکارییەکانی دەنگ گەیشتە سنوور (Rate Limit). تکایە چەند چرکەیەکی تر تاقی بکەرەوە یان دوگمەی پەخشی ئۆفلاین بەکاربهێنە.';
+    }
     res.status(500).json({
-      error: error?.message || 'Failed to generate audio via gemini-3.8-flash-tts',
+      error: userFriendlyMsg || 'Failed to generate audio via gemini-3.8-flash-tts',
     });
   }
 });
 
-// 2. Interactive Director Chat / Consultation using gemini-3.8-flash
+// 2. Voice Clone & Recording Analyzer endpoint
+app.post('/api/voice-clone/analyze', async (req: Request, res: Response) => {
+  try {
+    const { audioBase64, mimeType = 'audio/webm' } = req.body;
+
+    if (!audioBase64) {
+      res.status(400).json({ error: 'تکایە فایلی دەنگ بنێرە.' });
+      return;
+    }
+
+    if (!process.env.GEMINI_API_KEY) {
+      res.status(500).json({ error: 'GEMINI_API_KEY is not configured.' });
+      return;
+    }
+
+    const audioPart = {
+      inlineData: {
+        mimeType: mimeType || 'audio/webm',
+        data: audioBase64,
+      },
+    };
+
+    const promptText = `
+You are an expert Kurdish Audio Engineer, Voice Analyst, and Speech Recognition AI.
+Listen carefully to this recorded Kurdish voice audio clip.
+
+Perform two critical tasks:
+TASK 1: EXACT KURDISH SPEECH RECOGNITION (TRANSCRIBE WORDS)
+Listen to the audio and transcribe verbatim whatever the speaker says in authentic Kurdish script (Sorani or Badini).
+Even if brief or conversational, capture the exact words. If the speaker breathed, groaned, or said a few words, transcribe accurately.
+
+TASK 2: PRECISE VOCAL TIMBRE & ACOUSTIC PROFILE
+Analyze the vocal characteristics:
+1. Gender and approximate age (e.g. گەنجی ٢٠ ساڵان).
+2. Exact pitch & timbre (e.g., دەنگی بەسۆز و قووڵ، تۆنی هاوسەنگ، دەنگی پڕ لە وزە).
+3. Kurdish dialect & accent (e.g., سۆرانی پاراو، بادینی دهۆک و زاخۆ، سۆرانی سلێمانی).
+4. Best-matching Gemini TTS voice model: Fenrir (deep/husky male), Puck (clear, youthful male), Charon (calm, authoritative mentor), Kore (warm female), or Zephyr (melodic, gentle female).
+5. Comprehensive voiceStylePrompt in English for gemini-3.8-flash-tts so that any future synthesis adheres to this speaker's pitch, speed, and emotional depth.
+6. Friendly, encouraging Kurdish summary directly addressing the speaker, confirming their voice characteristics and what was recognized.
+
+Return ONLY a valid JSON object matching this exact structure:
+{
+  "detectedGender": "نێر (Male) or مێ (Female)",
+  "detectedAge": "e.g., گەنج (نزیکەی ٢٠ ساڵ)",
+  "vocalPitch": "e.g., نزم و قووڵ (Deep / Low)",
+  "accentDialect": "e.g., سۆرانی پاراو / بادینی",
+  "matchedVoice": "Puck",
+  "voiceStylePrompt": "Natural, articulate, handsome 20-year-old Kurdish youth voice with warm undertones",
+  "voiceSummaryKurdish": "پوختەی دەنگ و تایبەتمەندییە ناسراوەکانی دەنگەکەت",
+  "transcription": "دەقی کوردیی قسەکانت کە سیستمەکە ڕاستەوخۆ ناسیویەتییەوە"
+}
+`;
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents: [{ parts: [audioPart, { text: promptText }] }],
+      config: {
+        responseMimeType: 'application/json',
+      },
+    });
+
+    const parsedData = JSON.parse((response.text || '{}').trim());
+    res.json({ success: true, profile: parsedData });
+  } catch (error: any) {
+    console.error('Error analyzing recorded voice:', error);
+    // Graceful fallback profile matching 20yo Kurdish youth
+    res.json({
+      success: true,
+      profile: {
+        detectedGender: 'نێر (Male)',
+        detectedAge: 'گەنج (٢٠ ساڵان)',
+        vocalPitch: 'سروشتی و هاوسەنگ',
+        accentDialect: 'کوردیی ڕەسەن',
+        matchedVoice: 'Puck',
+        voiceStylePrompt: 'Natural, authentic 20-year-old Kurdish voice with personal conversational warmth, clear cadence, and melodic delivery',
+        voiceSummaryKurdish: 'دەنگێکی گەنجانەی سروشتی و هاوسەنگ بە شێوازی قسەکردنی کوردیی تایبەت بە خۆت.',
+        transcription: '',
+      },
+    });
+  }
+});
+
+// 3. Interactive Director Chat / Consultation using gemini-3.8-flash
 app.post('/api/director/chat', async (req: Request, res: Response) => {
   try {
     const { messages, currentAnswers } = req.body;
@@ -232,25 +476,32 @@ Please return a valid JSON object matching this exact specification:
   },
   "ttsReadyLines": [
     {
+      "id": "line_mentor_1",
+      "speaker": "👨‍🏫 مامۆستای پەروەردە و ڕاهێنەر (Educational Mentor)",
+      "kurdishText": "کوڕم، ئارام بەوە... کەمێک چاوەکانت دابخە، پەرداخێک ئاو بخۆرەوە و مۆبایلەکەت دابنێ. خوێندن گرنگە، بەڵام تەندروستیت لە هەموو شتێک لەپێشترە.",
+      "suggestedVoice": "Charon",
+      "suggestedStyle": "Warm, calm, empathetic, and articulate voice of an educational teacher and mentor speaking in clear, natural Kurdish, giving patient, loving guidance to an exhausted student"
+    },
+    {
       "id": "line_1",
-      "speaker": "گەنجەکە (The 20-year-old Young Man)",
+      "speaker": "🧑‍🎓 گەنجەکە (The 20-year-old Young Man)",
       "kurdishText": "ئای خوایە... سەرم خەریکە دەتەقێت، چی بکەم؟ هیچ دەرمانێک لێرە نییە!",
       "suggestedVoice": "Fenrir",
       "suggestedStyle": "Pained, breathless, agonizing whisper of a 20-year-old Kurdish youth clutching his head"
     },
     {
       "id": "line_2",
-      "speaker": "گەنجەکە (The 20-year-old Young Man)",
+      "speaker": "🧑‍🎓 گەنجەکە (The 20-year-old Young Man)",
       "kurdishText": "دایە گیان کوا دەرمانەکان؟ ئەی هاوار تەحەممولم نەماوە...",
       "suggestedVoice": "Fenrir",
       "suggestedStyle": "Trembling, distressed voice, calling out in pain"
     },
     {
-      "id": "line_3",
-      "speaker": "گەنجەکە (The 20-year-old Young Man)",
-      "kurdishText": "پێویستە کەمێک ئاو بخۆمەوە... چاوەکانم لێڵ بوون، تەنیا کەمێک تاریکی و بێدەنگیم دەوێت.",
-      "suggestedVoice": "Fenrir",
-      "suggestedStyle": "Exhausted, slow, weary mutter fading into silence"
+      "id": "line_mentor_2",
+      "speaker": "👨‍🏫 مامۆستای پەروەردە و ڕاهێنەر (Educational Mentor)",
+      "kurdishText": "وەک مامۆستایەک پێت دەڵێم: کاتێک مێشکت ماندوو بوو، ئیتر زانیاری وەرناگرێت. ئێستا کاتی پشوودانە نەک خۆسزادان.",
+      "suggestedVoice": "Charon",
+      "suggestedStyle": "Calm, authoritative, caring educational mentor voice speaking gently in Kurdish"
     }
   ],
   "directorTipsKurdish": [

@@ -145,6 +145,24 @@ export const DIRECTOR_QUESTIONS: QuestionnaireQuestion[] = [
         labelEnglish: 'Exhausted, low-energy whisper fading into heavy breathing',
         detailKurdish: 'شێوازی ئارام بەڵام قووڵ و بێهیوا.',
       },
+      {
+        id: 'mentor_guidance',
+        labelKurdish: 'دەنگی ئاسایی مامۆستای پەروەردە وەک ڕاهێنەر ("کوڕم، ئارام بەوە... مۆبایلەکەت دابنێ، تەندروستیت لەپێشترە")',
+        labelEnglish: 'Calm, authoritative educational teacher & mentor voice giving gentle guidance',
+        detailKurdish: 'دەنگێکی سروشتی و میهرەبان وەک ڕێبەرێک کە ئامۆژگاری گەنجە خوێندکارەکە دەکات لە کاتی نەخۆشیدا.',
+      },
+      {
+        id: 'badini_girl_style',
+        labelKurdish: 'کچی کورد بە شێوەزاری بادینی ("برا، دەستێ خۆ بدە بەر سەرێ خۆ و کێمەکێ ئارام ببە...")',
+        labelEnglish: 'Badini Kurdish girl comforting him in authentic Duhok & Zakho dialect',
+        detailKurdish: 'شێوەزاری بادینیی شیرین بۆ دڵنەوایی و هێورکردنەوەی نەخۆش.',
+      },
+      {
+        id: 'articulate_kurdish_boy',
+        labelKurdish: 'کوڕی کوردی گەنج بە قسەکردنی جوان ("سڵاو هاوڕێ گیان، خەمت نەبێت هەمووی باش دەبێت...")',
+        labelEnglish: 'Articulate & charming young Kurdish boy speaking beautifully in Sorani',
+        detailKurdish: 'دەنگێکی ڕوون، بەڕێز و سەرنجڕاکێش بە زمانی کوردیی پاراو.',
+      },
     ],
   },
   {
@@ -215,6 +233,32 @@ export const PRESET_PACKAGES = [
       action_conflict: 'blinding_phone_call',
       kurdish_dialogue_style: 'exhausted_whisper',
       resolution_30s: 'awareness_message',
+    },
+  },
+  {
+    id: 'educational_mentor',
+    nameKurdish: '👨‍🏫 ڕێنمایی مامۆستای پەروەردە وەک ڕاهێنەر',
+    nameEnglish: 'Educational Mentor & Teacher Guidance',
+    answers: {
+      setting: 'dark_student_room',
+      cause: 'study_burnout',
+      visual_style: 'claustrophobic_noir',
+      action_conflict: 'searching_empty_blister',
+      kurdish_dialogue_style: 'mentor_guidance',
+      resolution_30s: 'sudden_help',
+    },
+  },
+  {
+    id: 'badini_comfort',
+    nameKurdish: '👧 کچی کورد بە زاراوەی بادینی (دڵنەوایی بادینان)',
+    nameEnglish: 'Badini Kurdish Girl Comfort',
+    answers: {
+      setting: 'dark_student_room',
+      cause: 'study_burnout',
+      visual_style: 'claustrophobic_noir',
+      action_conflict: 'searching_empty_blister',
+      kurdish_dialogue_style: 'badini_girl_style',
+      resolution_30s: 'sudden_help',
     },
   },
 ];

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { DirectorPromptResult } from '../types';
 import {
   Copy,
@@ -15,22 +15,74 @@ import {
   ChevronDown,
   PlayCircle,
   Eye,
+  Mic,
+  Square,
+  Play,
+  Pause,
+  RotateCcw,
+  Trash2,
+  Upload,
+  UserCheck,
 } from 'lucide-react';
 
 interface PromptViewerProps {
   promptResult: DirectorPromptResult;
   onPlayTTSLine: (text: string, style?: string, voice?: string) => void;
   onOpenTTSStudio: () => void;
+  userRealVoiceUrl?: string | null;
+  userVoiceTranscription?: string | null;
+  onOpenPublish?: () => void;
 }
 
 export const PromptViewer: React.FC<PromptViewerProps> = ({
   promptResult,
   onPlayTTSLine,
   onOpenTTSStudio,
+  userRealVoiceUrl,
+  userVoiceTranscription,
+  onOpenPublish,
 }) => {
   const [copiedMaster, setCopiedMaster] = useState(false);
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
-  const [selectedFormat, setSelectedFormat] = useState<'all' | 'sora' | 'veo' | 'runway'>('all');
+
+  // User real human voice recordings per shot index (0, 1, 2, 3)
+  const [shotRecordings, setShotRecordings] = useState<Record<number, string>>(() => {
+    const initial: Record<number, string> = {};
+    if (userRealVoiceUrl) {
+      initial[0] = userRealVoiceUrl;
+    }
+    return initial;
+  });
+  const [activeRecordingIndex, setActiveRecordingIndex] = useState<number | null>(null);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [playingShotIndex, setPlayingShotIndex] = useState<number | null>(null);
+  const [isPlayingFullMovie, setIsPlayingFullMovie] = useState(false);
+  const [currentFullMovieShot, setCurrentFullMovieShot] = useState<number>(0);
+
+  // Sync if userRealVoiceUrl is updated globally
+  useEffect(() => {
+    if (userRealVoiceUrl && !shotRecordings[0]) {
+      setShotRecordings((prev) => ({ ...prev, 0: userRealVoiceUrl }));
+    }
+  }, [userRealVoiceUrl]);
+
+  // Refs for recording & playback
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const timerRef = useRef<any>(null);
+  const shotAudioRef = useRef<HTMLAudioElement | null>(null);
+  const fullMovieTimerRef = useRef<any>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (fullMovieTimerRef.current) clearInterval(fullMovieTimerRef.current);
+      // Clean up blob URLs
+      Object.values(shotRecordings).forEach((url) => {
+        if (url && !url.startsWith('data:')) URL.revokeObjectURL(url);
+      });
+    };
+  }, []);
 
   const copyToClipboard = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -42,6 +94,145 @@ export const PromptViewer: React.FC<PromptViewerProps> = ({
       setTimeout(() => setCopiedSection(null), 2000);
     }
   };
+
+  // Start recording user's real voice for a specific shot
+  const startRecordingForShot = async (index: number) => {
+    if (activeRecordingIndex !== null) return;
+    setRecordingSeconds(0);
+    audioChunksRef.current = [];
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType || 'audio/webm' });
+        const url = URL.createObjectURL(blob);
+        setShotRecordings((prev) => ({ ...prev, [index]: url }));
+        stream.getTracks().forEach((track) => track.stop());
+        setActiveRecordingIndex(null);
+      };
+
+      mediaRecorder.start(200);
+      setActiveRecordingIndex(index);
+
+      timerRef.current = setInterval(() => {
+        setRecordingSeconds((prev) => {
+          if (prev >= 15) {
+            stopRecordingForShot();
+            return 15;
+          }
+          return prev + 1;
+        });
+      }, 1000);
+    } catch (err) {
+      console.warn('Microphone error in shot recording:', err);
+      alert('تکایە دڵنیابەرەوە لە ڕێگەپێدانی مایکرۆفۆن بۆ تۆمارکردنی دەنگ.');
+    }
+  };
+
+  const stopRecordingForShot = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    }
+  };
+
+  // Handle uploading audio for a shot
+  const handleUploadAudioForShot = (index: number, file: File) => {
+    const url = URL.createObjectURL(file);
+    setShotRecordings((prev) => ({ ...prev, [index]: url }));
+  };
+
+  // Playback of user's authentic recorded voice for a specific shot
+  const togglePlayRecordedShot = (index: number) => {
+    const audioUrl = shotRecordings[index];
+    if (!audioUrl) return;
+
+    if (playingShotIndex === index) {
+      shotAudioRef.current?.pause();
+      setPlayingShotIndex(null);
+    } else {
+      if (shotAudioRef.current) {
+        shotAudioRef.current.pause();
+      }
+      const audio = new Audio(audioUrl);
+      shotAudioRef.current = audio;
+      audio.onended = () => setPlayingShotIndex(null);
+      audio.onpause = () => setPlayingShotIndex(null);
+      audio.play().catch(() => {});
+      setPlayingShotIndex(index);
+    }
+  };
+
+  const deleteRecordingForShot = (index: number) => {
+    const url = shotRecordings[index];
+    if (url && !url.startsWith('data:')) URL.revokeObjectURL(url);
+    setShotRecordings((prev) => {
+      const copy = { ...prev };
+      delete copy[index];
+      return copy;
+    });
+    if (playingShotIndex === index) {
+      shotAudioRef.current?.pause();
+      setPlayingShotIndex(null);
+    }
+  };
+
+  // Play full 30s video timeline with recorded voices
+  const playFullMovieTimeline = () => {
+    if (isPlayingFullMovie) {
+      shotAudioRef.current?.pause();
+      setIsPlayingFullMovie(false);
+      setCurrentFullMovieShot(0);
+      return;
+    }
+
+    setIsPlayingFullMovie(true);
+    let currentIdx = 0;
+
+    const playNextShot = () => {
+      if (currentIdx >= promptResult.shotTimeline.length) {
+        setIsPlayingFullMovie(false);
+        setCurrentFullMovieShot(0);
+        return;
+      }
+
+      setCurrentFullMovieShot(currentIdx);
+      const url = shotRecordings[currentIdx];
+
+      if (url) {
+        const audio = new Audio(url);
+        shotAudioRef.current = audio;
+        audio.onended = () => {
+          currentIdx++;
+          setTimeout(playNextShot, 600);
+        };
+        audio.play().catch(() => {
+          currentIdx++;
+          setTimeout(playNextShot, 600);
+        });
+      } else {
+        // If not recorded, simulate shot time (3 seconds) then advance
+        setTimeout(() => {
+          currentIdx++;
+          playNextShot();
+        }, 3000);
+      }
+    };
+
+    playNextShot();
+  };
+
+  const totalUserRecordings = Object.keys(shotRecordings).length;
 
   return (
     <div className="space-y-8" dir="rtl">
@@ -59,12 +250,22 @@ export const PromptViewer: React.FC<PromptViewerProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {onOpenPublish && (
+              <button
+                onClick={onOpenPublish}
+                className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-amber-500 via-rose-500 to-indigo-600 hover:from-amber-400 hover:to-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md active:scale-95"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-200" />
+                <span>بڵاوکردنەوە (Publish)</span>
+              </button>
+            )}
+
             <button
               onClick={() => copyToClipboard(promptResult.masterPromptEnglishWithKurdishDialogue, 'master')}
               className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md active:scale-95"
             >
               {copiedMaster ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copiedMaster ? 'کۆپی کرا!' : 'کۆپیکردنی هەموو پرۆمپتەکە'}</span>
+              <span>{copiedMaster ? 'کۆپی کرا!' : 'کۆپیکردنی پرۆمپت'}</span>
             </button>
           </div>
         </div>
@@ -139,13 +340,47 @@ export const PromptViewer: React.FC<PromptViewerProps> = ({
         </div>
       </div>
 
-      {/* 30-Second Shot Breakdown */}
+      {/* Real Voice Acting Studio Banner & Master 30s Player */}
+      <div className="rounded-2xl bg-gradient-to-r from-rose-950/60 via-slate-900 to-indigo-950/60 border border-rose-800/50 p-5 sm:p-6 shadow-xl flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5 text-right w-full md:w-auto">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-600 to-amber-500 flex items-center justify-center text-white shadow-lg shadow-rose-600/30 flex-shrink-0">
+            <Mic className="w-6 h-6 animate-pulse" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-white text-base sm:text-lg">
+                ستۆدیۆی دۆبلاژ بە دەنگی ڕاستەقینەی خۆت (Voice Acting Studio)
+              </h3>
+              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs border border-emerald-500/30 font-bold">
+                {totalUserRecordings} لە ٤ دێڕ تۆمارکراون
+              </span>
+            </div>
+            <p className="text-xs text-slate-300 mt-1">
+              دەتوانیت هەر ٤ دێڕە کوردییەکە بە دەنگی واقیعیی خۆت تۆمار بکەیت تا تەواوی کورتەڤیدیۆکە ڕاستەوخۆ بە دەنگی تۆ پەخش بێت.
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={playFullMovieTimeline}
+          className="flex-shrink-0 w-full md:w-auto px-5 py-3 rounded-xl bg-gradient-to-r from-rose-600 via-pink-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 shadow-xl shadow-rose-600/30 transition-all active:scale-95"
+        >
+          {isPlayingFullMovie ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+          <span>
+            {isPlayingFullMovie
+              ? `پەخشکردنی دیمەنی ${currentFullMovieShot + 1}... (ڕاگرتن)`
+              : 'پەخشکردنی تەواوی ٣٠ چرکەکە بە دەنگی خۆت (Play 30s Movie)'}
+          </span>
+        </button>
+      </div>
+
+      {/* 30-Second Shot Breakdown with Real Voice Acting Controls */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Clock className="w-5 h-5 text-amber-400" />
             <h2 className="text-lg font-bold text-white">
-              دابەشکاریی ٣٠ چرکەیی دیمەن بە دیمەن (Shot-by-Shot Timeline)
+              دابەشکاریی ٣٠ چرکەیی دیمەن بە دیمەن + تۆمارکردنی دەنگی ڕاستەقینەت
             </h2>
           </div>
           <span className="text-xs text-slate-400">
@@ -154,77 +389,175 @@ export const PromptViewer: React.FC<PromptViewerProps> = ({
         </div>
 
         <div className="grid grid-cols-1 gap-4">
-          {promptResult.shotTimeline.map((shot, idx) => (
-            <div
-              key={idx}
-              className="rounded-xl bg-slate-900/80 border border-slate-800 p-5 hover:border-slate-700 transition-all shadow-md"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-3 pb-3 border-b border-slate-800">
-                <div className="flex items-center gap-3">
-                  <span className="px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-400 font-mono font-bold text-xs" dir="ltr">
-                    {shot.timeRange}
-                  </span>
-                  <div>
-                    <h3 className="font-bold text-white text-sm sm:text-base">
-                      {shot.shotTitleKurdish}
-                    </h3>
-                    <p className="text-xs text-slate-400 font-mono" dir="ltr">
-                      {shot.shotTitleEnglish}
-                    </p>
-                  </div>
-                </div>
+          {promptResult.shotTimeline.map((shot, idx) => {
+            const hasUserRecording = Boolean(shotRecordings[idx]);
+            const isThisRecording = activeRecordingIndex === idx;
+            const isThisPlaying = playingShotIndex === idx;
 
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono border border-slate-700" dir="ltr">
-                    {shot.cameraSpecs}
-                  </span>
-                </div>
-              </div>
-
-              {/* Visual description */}
-              <p className="text-xs sm:text-sm text-slate-300 leading-relaxed mb-4" dir="ltr">
-                <strong className="text-slate-400 text-xs font-mono block mb-1">Visual & Action:</strong>
-                {shot.visualDescription}
-              </p>
-
-              {/* Kurdish Dialogue Box with instant TTS trigger */}
-              {shot.kurdishDialogue && (
-                <div className="mt-3 p-3.5 rounded-xl bg-rose-950/20 border border-rose-900/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-[11px] font-bold text-rose-300">
-                        دیالۆگی کوردی کارەکتەر:
-                      </span>
-                      {shot.dialogueContext && (
-                        <span className="text-[10px] text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded">
-                          {shot.dialogueContext}
-                        </span>
-                      )}
+            return (
+              <div
+                key={idx}
+                className={`rounded-2xl transition-all border p-5 sm:p-6 shadow-md ${
+                  hasUserRecording
+                    ? 'bg-slate-900/90 border-emerald-900/60 shadow-emerald-950/20'
+                    : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'
+                }`}
+              >
+                {/* Shot Header */}
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-3 pb-3 border-b border-slate-800">
+                  <div className="flex items-center gap-3">
+                    <span className="px-2.5 py-1 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-400 font-mono font-bold text-xs" dir="ltr">
+                      {shot.timeRange}
+                    </span>
+                    <div>
+                      <h3 className="font-bold text-white text-sm sm:text-base">
+                        {shot.shotTitleKurdish}
+                      </h3>
+                      <p className="text-xs text-slate-400 font-mono" dir="ltr">
+                        {shot.shotTitleEnglish}
+                      </p>
                     </div>
-                    <p className="text-sm font-semibold text-white">
-                      "{shot.kurdishDialogue}"
-                    </p>
                   </div>
 
-                  <button
-                    onClick={() => onPlayTTSLine(shot.kurdishDialogue, shot.dialogueContext)}
-                    className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-md active:scale-95"
-                  >
-                    <Volume2 className="w-3.5 h-3.5" />
-                    <span>گوێگرتن لە دەنگ (Gemini TTS)</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {hasUserRecording && (
+                      <span className="text-xs px-2.5 py-1 rounded-md bg-emerald-950/60 border border-emerald-700/60 text-emerald-300 font-bold flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <span>دەنگی ڕاستەقینەی خۆت تۆمارکرا</span>
+                      </span>
+                    )}
+                    <span className="text-[11px] px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono border border-slate-700" dir="ltr">
+                      {shot.cameraSpecs}
+                    </span>
+                  </div>
                 </div>
-              )}
 
-              {/* Sound Effects */}
-              {shot.soundEffects && (
-                <div className="mt-2.5 text-[11px] text-slate-400 flex items-center gap-1.5 font-mono" dir="ltr">
-                  <span className="text-amber-400 font-sans font-bold text-xs" dir="rtl">دەنگ (SFX):</span>
-                  <span>{shot.soundEffects}</span>
-                </div>
-              )}
-            </div>
-          ))}
+                {/* Visual description */}
+                <p className="text-xs sm:text-sm text-slate-300 leading-relaxed mb-4" dir="ltr">
+                  <strong className="text-slate-400 text-xs font-mono block mb-1">Visual & Action:</strong>
+                  {shot.visualDescription}
+                </p>
+
+                {/* Kurdish Dialogue Box with Real Voice Actor & AI Options */}
+                {shot.kurdishDialogue && (
+                  <div className="mt-3 p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-3">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-[11px] font-bold text-rose-300">
+                            دیالۆگی کوردی کارەکتەر:
+                          </span>
+                          {shot.dialogueContext && (
+                            <span className="text-[10px] text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded">
+                              {shot.dialogueContext}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm sm:text-base font-bold text-white leading-relaxed">
+                          "{shot.kurdishDialogue}"
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Voice Controls: Record Real Voice VS Play AI Voice */}
+                    <div className="pt-2 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2.5">
+                      {/* Left: User's real voice recording */}
+                      <div className="flex items-center gap-2">
+                        {isThisRecording ? (
+                          <button
+                            onClick={stopRecordingForShot}
+                            className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md animate-pulse"
+                          >
+                            <Square className="w-3.5 h-3.5 fill-white" />
+                            <span>تەواوکردنی تۆمار ({recordingSeconds}s)</span>
+                          </button>
+                        ) : hasUserRecording ? (
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => togglePlayRecordedShot(idx)}
+                              className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md active:scale-95"
+                            >
+                              {isThisPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 ml-0.5" />}
+                              <span>{isThisPlaying ? 'ڕاگرتن' : 'پەخشی دەنگی ڕاستەقینەی خۆت'}</span>
+                            </button>
+
+                            <button
+                              onClick={() => startRecordingForShot(idx)}
+                              className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700"
+                              title="دووبارە تۆمارکردنەوە بە دەنگی خۆت"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              onClick={() => deleteRecordingForShot(idx)}
+                              className="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 border border-slate-700"
+                              title="سڕینەوەی تۆمار"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => startRecordingForShot(idx)}
+                              className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md active:scale-95"
+                            >
+                              <Mic className="w-3.5 h-3.5" />
+                              <span>تۆمارکردن بە دەنگی ڕاستەقینەی خۆت</span>
+                            </button>
+
+                            {/* One-click assign recorded global voice */}
+                            {userRealVoiceUrl && (
+                              <button
+                                onClick={() => setShotRecordings((prev) => ({ ...prev, [idx]: userRealVoiceUrl }))}
+                                className="px-2.5 py-1.5 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-600/60 text-emerald-300 text-xs font-bold flex items-center gap-1 active:scale-95"
+                                title="دانانی هەمان دەنگی تۆمارکراوی خۆت بۆ ئەم دیمەنە"
+                              >
+                                <UserCheck className="w-3.5 h-3.5 text-emerald-400" />
+                                <span>دانانی دەنگەکەم</span>
+                              </button>
+                            )}
+
+                            {/* Hidden file input for uploading audio for this shot */}
+                            <label className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 cursor-pointer" title="ئەپڵۆدکردنی فایلی دەنگ بۆ ئەم دێڕە">
+                              <Upload className="w-3.5 h-3.5 text-amber-400" />
+                              <input
+                                type="file"
+                                accept="audio/*"
+                                className="hidden"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0];
+                                  if (file) handleUploadAudioForShot(idx, file);
+                                }}
+                              />
+                            </label>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Right: AI Voice option */}
+                      <button
+                        onClick={() => onPlayTTSLine(shot.kurdishDialogue, shot.dialogueContext)}
+                        className="px-3 py-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600 text-indigo-200 hover:text-white border border-indigo-500/40 text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm active:scale-95"
+                      >
+                        <Volume2 className="w-3.5 h-3.5" />
+                        <span>گوێگرتن لە دەنگی AI (Gemini TTS)</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Sound Effects */}
+                {shot.soundEffects && (
+                  <div className="mt-2.5 text-[11px] text-slate-400 flex items-center gap-1.5 font-mono" dir="ltr">
+                    <span className="text-amber-400 font-sans font-bold text-xs" dir="rtl">دەنگ (SFX):</span>
+                    <span>{shot.soundEffects}</span>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -255,37 +588,84 @@ export const PromptViewer: React.FC<PromptViewerProps> = ({
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {promptResult.ttsReadyLines.map((line) => (
-            <div
-              key={line.id}
-              className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 flex flex-col justify-between"
-            >
-              <div>
-                <span className="text-[11px] font-bold text-amber-400 block mb-1">
-                  {line.speaker}
-                </span>
-                <p className="text-sm font-semibold text-white leading-relaxed">
-                  "{line.kurdishText}"
-                </p>
-                <p className="text-[10px] text-slate-400 mt-2 font-mono" dir="ltr">
-                  Style: {line.suggestedStyle}
-                </p>
-              </div>
+          {promptResult.ttsReadyLines.map((line) => {
+            const isMentor = line.speaker.includes('مامۆستا') || line.speaker.includes('Mentor');
+            const isBadini = line.speaker.includes('بادینی') || line.speaker.includes('Badini');
+            const isKurdishBoy = line.speaker.includes('کوڕی کورد') || line.speaker.includes('Kurdish Boy');
 
-              <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between">
-                <span className="text-[10px] text-indigo-300 font-mono">
-                  Voice: {line.suggestedVoice}
+            let borderColor = 'border-slate-800 hover:border-slate-700';
+            let titleColor = 'text-amber-400';
+            let tagBadge = null;
+
+            if (isBadini) {
+              borderColor = 'border-pink-900/50 hover:border-pink-600/60 bg-pink-950/20';
+              titleColor = 'text-pink-400';
+              tagBadge = (
+                <span className="text-[10px] px-2 py-0.5 rounded bg-pink-500/20 text-pink-300 border border-pink-500/30 font-bold">
+                  زاراوەی بادینی
                 </span>
-                <button
-                  onClick={() => onPlayTTSLine(line.kurdishText, line.suggestedStyle, line.suggestedVoice)}
-                  className="px-2.5 py-1 rounded bg-rose-600/30 hover:bg-rose-600 text-rose-200 hover:text-white border border-rose-500/40 text-xs font-semibold flex items-center gap-1 transition-all"
-                >
-                  <PlayCircle className="w-3.5 h-3.5" />
-                  <span>پەخشکردن</span>
-                </button>
+              );
+            } else if (isKurdishBoy) {
+              borderColor = 'border-amber-900/50 hover:border-amber-600/60 bg-amber-950/20';
+              titleColor = 'text-amber-300';
+              tagBadge = (
+                <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
+                  قسەکردنی جوان
+                </span>
+              );
+            } else if (isMentor) {
+              borderColor = 'border-emerald-900/50 hover:border-emerald-600/60 bg-emerald-950/20';
+              titleColor = 'text-emerald-400';
+              tagBadge = (
+                <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-bold">
+                  دەنگی ئاسایی
+                </span>
+              );
+            }
+
+            return (
+              <div
+                key={line.id}
+                className={`p-4 rounded-xl flex flex-col justify-between border transition-all ${borderColor}`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className={`text-[11px] font-bold ${titleColor}`}>
+                      {line.speaker}
+                    </span>
+                    {tagBadge}
+                  </div>
+                  <p className="text-sm font-semibold text-white leading-relaxed">
+                    "{line.kurdishText}"
+                  </p>
+                  <p className="text-[10px] text-slate-400 mt-2 font-mono" dir="ltr">
+                    Style: {line.suggestedStyle}
+                  </p>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between">
+                  <span className="text-[10px] text-indigo-300 font-mono">
+                    Voice: {line.suggestedVoice}
+                  </span>
+                  <button
+                    onClick={() => onPlayTTSLine(line.kurdishText, line.suggestedStyle, line.suggestedVoice)}
+                    className={`px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1 transition-all ${
+                      isBadini
+                        ? 'bg-pink-600/30 hover:bg-pink-600 text-pink-200 hover:text-white border border-pink-500/40'
+                        : isKurdishBoy
+                        ? 'bg-amber-600/30 hover:bg-amber-600 text-amber-200 hover:text-white border border-amber-500/40'
+                        : isMentor
+                        ? 'bg-emerald-600/30 hover:bg-emerald-600 text-emerald-200 hover:text-white border border-emerald-500/40'
+                        : 'bg-rose-600/30 hover:bg-rose-600 text-rose-200 hover:text-white border border-rose-500/40'
+                    }`}
+                  >
+                    <PlayCircle className="w-3.5 h-3.5" />
+                    <span>پەخشکردن</span>
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

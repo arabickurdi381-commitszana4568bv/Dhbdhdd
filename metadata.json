@@ -1,6 +1,6 @@
 {
   "name": "Kurdish Video Director & TTS Studio",
   "description": "Interactive video prompt engineer, 30s storyboard generator, Kurdish screenplay dialogues, and Gemini 3.8 Flash TTS voice synthesis.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

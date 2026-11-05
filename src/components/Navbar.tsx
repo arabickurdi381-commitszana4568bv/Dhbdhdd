@@ -6,6 +6,7 @@ interface NavbarProps {
   setActiveTab: (tab: 'questionnaire' | 'prompt' | 'tts' | 'chat') => void;
   hasGeneratedPrompt: boolean;
   isPlayingAnyAudio: boolean;
+  onOpenPublish: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -13,6 +14,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   setActiveTab,
   hasGeneratedPrompt,
   isPlayingAnyAudio,
+  onOpenPublish,
 }) => {
   return (
     <header className="sticky top-0 z-50 bg-[#0d131f]/90 backdrop-blur-md border-b border-slate-800">
@@ -90,10 +92,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               <Volume2 className={`w-4 h-4 ${isPlayingAnyAudio ? 'text-rose-400 animate-bounce' : ''}`} />
-              <span className="hidden md:inline">دەنگی کوردی (TTS)</span>
+              <span className="hidden md:inline">تۆمار و دەنگ (TTS)</span>
               <span className="md:hidden">دەنگ</span>
               <span className="px-1.5 py-0.2 text-[10px] bg-rose-500/30 text-rose-300 rounded font-bold">
-                TTS
+                Mic + TTS
               </span>
             </button>
 
@@ -108,6 +110,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               <MessageSquare className="w-4 h-4" />
               <span className="hidden md:inline">وتووێژی دەرهێنەر</span>
               <span className="md:hidden">وتووێژ</span>
+            </button>
+
+            {/* Prominent Publish / Share Button */}
+            <button
+              onClick={onOpenPublish}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-gradient-to-r from-amber-500 via-rose-500 to-indigo-600 hover:from-amber-400 hover:to-indigo-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-amber-500/20 transition-all active:scale-95 ml-1"
+              title="بڵاوکردنەوە و هەناردەکردنی پڕۆژە"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-200 animate-pulse" />
+              <span>بڵاوکردنەوە (Publish)</span>
             </button>
           </nav>
         </div>
