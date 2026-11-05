@@ -1,0 +1,220 @@
+import { QuestionnaireQuestion } from '../types';
+
+export const DIRECTOR_QUESTIONS: QuestionnaireQuestion[] = [
+  {
+    id: 'setting',
+    categoryKurdish: 'شوێن و ژینگەی دیمەن',
+    categoryEnglish: 'Setting & Environment',
+    questionKurdish: 'دەتەوێت دیمەنەکە لە چ ژینگەیەکدا ڕووبدات بۆ ئەوەی هەستی سەرئێشەکە توندتر دەربکەوێت؟',
+    questionEnglish: 'Where should the scene take place to accentuate the claustrophobia of the headache?',
+    descriptionKurdish: 'شوێنەکە کاریگەری ڕاستەوخۆی دەبێت لەسەر ڕووناکی و شێوازی دەنگ لەناو پرۆمپتەکەدا.',
+    options: [
+      {
+        id: 'dark_student_room',
+        labelKurdish: 'ژووری نووستنی تاریک بە پەردەی ئەستوور، لاپتۆپی کراوە و کتێبی خوێندن',
+        labelEnglish: 'Darkened bedroom with drawn curtains, glowing laptop screen & textbooks',
+        detailKurdish: 'هەستی تەنگەتاوی لە نێوان تاقیکردنەوە و نەخۆشی.',
+      },
+      {
+        id: 'kurdish_living_room',
+        labelKurdish: 'ژووری میوانی ماڵێکی کوردی بە دەنگی بەرز لە پاشبنەما (تەلەڤزیۆن و قسە)',
+        labelEnglish: 'Modern Kurdish home living room with overwhelming ambient TV noise',
+        detailKurdish: 'دەنگ و ژاوەژاو سەرئێشەکەی دەهەژێنێت.',
+      },
+      {
+        id: 'bright_harsh_street',
+        labelKurdish: 'شەقامێکی قەرەباڵغی کوردستان لە ژێر تیشکی تیژی خۆردا',
+        labelEnglish: 'Busy Kurdish city street (Slemani/Erbil) under blinding midday sun',
+        detailKurdish: 'تیشکی هەتاو و قەرەباڵغی چاوەکانی دەسوتێنێت.',
+      },
+      {
+        id: 'dim_bathroom_mirror',
+        labelKurdish: 'حەمامێکی تەنگ لە بەردەم ئاوێنەدا بە ڕووناکی فلۆرۆسێنتی لەرزیو',
+        labelEnglish: 'Tight bathroom in front of mirror with flickering fluorescent tube',
+        detailKurdish: 'سەیرکردنی ڕووخساری پەشۆکاوی لە ئاوێنەدا.',
+      },
+    ],
+  },
+  {
+    id: 'cause',
+    categoryKurdish: 'هۆکاری سەرئێشە و دۆخی دەروونی',
+    categoryEnglish: 'Trigger & Psychological State',
+    questionKurdish: 'هۆکاری ئەم ئازارە توندەی گەنجە ٢٠ ساڵانەکە چییە لەم ٣٠ چرکەیەدا؟',
+    questionEnglish: 'What is triggering this severe headache in this 20-year-old youth?',
+    descriptionKurdish: 'ئەمە یارمەتیدەر دەبێت لە دیاریکردنی جۆری جووڵە و کاردانەوەی جەستەیی.',
+    options: [
+      {
+        id: 'study_burnout',
+        labelKurdish: 'ماندووبوونی شەوانەی زانکۆ و ئالوودەبوون بە شاشەی مۆبایل و لاپتۆپ',
+        labelEnglish: 'Late-night university study burnout, lack of sleep & blue light strain',
+        detailKurdish: 'چاوەکانی سوور بوونەتەوە و پەنجە لە چاوی دەخشێنێت.',
+      },
+      {
+        id: 'severe_migraine_aura',
+        labelKurdish: 'مایگرەینی کوشندە (شەقیقە) بە لەرزینی چاو و هەستی هێڵنجدان',
+        labelEnglish: 'Severe migraine attack with visual aura, photophobia & nausea',
+        detailKurdish: 'تەحەممولی هیچ تیشکێک ناکات و دەستی بە دەمارەکانی سەریەوەیە.',
+      },
+      {
+        id: 'emotional_stress',
+        labelKurdish: 'خەم و سترێسی لەناکاو (هەواڵێکی ناخۆش یان بێکاری و کێشەی ژیان)',
+        labelEnglish: 'Sudden emotional anxiety, crushing personal stress & pressure',
+        detailKurdish: 'دڵی بە خێرایی لێدەدات و هەناسەی سوار دەبێت.',
+      },
+    ],
+  },
+  {
+    id: 'visual_style',
+    categoryKurdish: 'شێوازی سینەماتۆگرافی و کامێرا',
+    categoryEnglish: 'Cinematography & Camera Language',
+    questionKurdish: 'دەتەوێت کامێرا چۆن هەستی ئازاری سەری بۆ بینەر بگوازێتەوە؟',
+    questionEnglish: 'How should the camera convey the physical sensation of the migraine?',
+    descriptionKurdish: 'ئەمە دیاری دەکات چۆن سۆرا (Sora) یان ڤیۆ (Veo) لێنز و جووڵەکان بڕازێننەوە.',
+    options: [
+      {
+        id: 'dutch_handheld_blur',
+        labelKurdish: 'کامێرای لەرزۆکی دەستی، گۆشەی لاری خوار (Dutch Angle) و لێڵبوونی بینایی',
+        labelEnglish: 'Handheld visceral camera, dramatic Dutch tilt angles & radial motion blur',
+        detailKurdish: 'بینەر راستەوخۆ هەست بە سەرگێژخواردن دەکات.',
+      },
+      {
+        id: 'macro_extreme_closeup',
+        labelKurdish: 'وێنەگرتنی ئێجگار نزیک (Extreme Close-Up) لە دەمارەکانی تەوێڵ، ئارەقە و چاوەکان',
+        labelEnglish: 'Extreme macro close-ups on pulsing temple veins, cold sweat & dilated pupils',
+        detailKurdish: 'پیشاندانی توندیی ئازارەکە لەسەر ئەندامەکانی دەموچاو.',
+      },
+      {
+        id: 'claustrophobic_noir',
+        labelKurdish: 'سینەماتیکی تاریک (Dark Cinematic Noir) بە سێبەری قووڵ و کەمترین ڕووناکی',
+        labelEnglish: 'Moody low-key cinematic lighting, deep teal shadows with harsh amber rim light',
+        detailKurdish: 'شێوازێکی دراماتیکی بەهێز و پڕ لە هەست.',
+      },
+    ],
+  },
+  {
+    id: 'action_conflict',
+    categoryKurdish: 'کاردانەوە و هەوڵەکانی گەنجەکە',
+    categoryEnglish: 'Character Action & Desperation',
+    questionKurdish: 'لە چرکەی ٦ تا ٢٠، گەنجەکە چی دەکات کاتێک نازانێت چی بکات بۆ سەرئێشەکەی؟',
+    questionEnglish: 'Between seconds 06-20, what actions illustrate his helpless confusion?',
+    descriptionKurdish: 'جووڵەی ئەکتەرەکە ناوەڕۆکی سەرەکیی ڤیدیۆکەیە.',
+    options: [
+      {
+        id: 'searching_empty_blister',
+        labelKurdish: 'بە پەشۆکاوی بەناو جانتا و کەنتۆردا دەگەڕێت و تەنیا زەرفی بەتاڵی دەرمان دەدۆزێتەوە',
+        labelEnglish: 'Frantically rummaging through drawers, finding only an empty painkiller blister',
+        detailKurdish: 'بێئومێدی لە نەدۆزینەوەی دەرمان.',
+      },
+      {
+        id: 'blinding_phone_call',
+        labelKurdish: 'مۆبایلەکەی هەڵدەگرێت بۆ تەلەفۆن، بەڵام ڕووناکییەکەی سەرئێشەکەی زیاتر دەکات',
+        labelEnglish: 'Picks up phone to call for help, but the blinding screen brightness makes him wince',
+        detailKurdish: 'مۆبایلەکە فڕێ دەدات و سەری دەگوشێت.',
+      },
+      {
+        id: 'cold_water_splash',
+        labelKurdish: 'ئاوێکی سارد دەکات بە دەموچاویدا و دەستەکانی دەخاتە سەر سەری لە بێچارەییدا',
+        labelEnglish: 'Splashing cold water on his face, shivering while clutching head over the sink',
+        detailKurdish: 'دڵۆپەکانی ئاو لەگەڵ ئارەقە تێکەڵ دەبن.',
+      },
+    ],
+  },
+  {
+    id: 'kurdish_dialogue_style',
+    categoryKurdish: 'دیالۆگ و مەنەلۆگی کوردی لەناو پرۆمپتەکە',
+    categoryEnglish: 'Kurdish Spoken Dialogue Tone',
+    questionKurdish: 'دەتەوێت قسە و دەربڕینە کوردییەکانی گەنجەکە چ جۆرە تۆنێکی هەبێت؟',
+    questionEnglish: 'What emotional tone should the Kurdish dialogue and voice lines express?',
+    descriptionKurdish: 'دەقە کوردییەکە لە پرۆمپتە ئینگلیزییەکە دادەنرێت و لە مۆدێلی TTS دەخوێندرێتەوە.',
+    options: [
+      {
+        id: 'pleading_desperate',
+        labelKurdish: 'پڕ لە ئازار و کڕوزانەوە ("ئای خوایە... سەرم خەریکە دەتەقێت، چی بکەم باشە؟")',
+        labelEnglish: 'Raw, pained, pleading groan ("ئای خوایە... سەرم خەریکە دەتەقێت، چی بکەم باشە؟")',
+        detailKurdish: 'دەنگێکی لەرزۆک و پڕ لە سوێی ئازار.',
+      },
+      {
+        id: 'calling_family',
+        labelKurdish: 'بانگکردنی دایک یان هاوڕێ ("دایە گیان کوا دەرمانەکان؟ ئیتر بەرگە ناگرم...")',
+        labelEnglish: 'Calling out for a parent/roommate in desperation',
+        detailKurdish: 'هەوڵدان بۆ دۆزینەوەی فریاگوزاری لە کەسانی ماڵەوە.',
+      },
+      {
+        id: 'exhausted_whisper',
+        labelKurdish: 'چپەی ماندوو و کەوتوو ("تەنها کەمێک بێدەنگیم دەوێت... چاوەکانم هیچ نابینن...")',
+        labelEnglish: 'Exhausted, low-energy whisper fading into heavy breathing',
+        detailKurdish: 'شێوازی ئارام بەڵام قووڵ و بێهیوا.',
+      },
+    ],
+  },
+  {
+    id: 'resolution_30s',
+    categoryKurdish: 'کۆتایی ڤیدیۆ لە چرکەی ٣٠ (Resolution)',
+    categoryEnglish: 'The Final Climax & Ending',
+    questionKurdish: 'لە ٥ چرکەی کۆتاییدا (چرکەی ٢٥ تا ٣٠) چۆن دیمەنەکە کۆتایی پێبێت؟',
+    questionEnglish: 'How does the 30-second arc resolve in the final 5 seconds?',
+    descriptionKurdish: 'کۆتایی کورتەڤیدیۆکە پەیام و هەستی سەرەکی لە بیر بینەر جێگیر دەکات.',
+    options: [
+      {
+        id: 'sudden_help',
+        labelKurdish: 'دەرگاکە دەکرێتەوە و کەسێک (دایک/هاوڕێ) پەرداخێک ئاو و دەرمانی بۆ دەهێنێت',
+        labelEnglish: 'The bedroom door softly opens; a caring hand brings water and relief',
+        detailKurdish: 'کۆتاییەکی دڵنەوایی و هیوابەخش.',
+      },
+      {
+        id: 'dramatic_surrender',
+        labelKurdish: 'لەسەر فەرشەکە پاڵدەکەوێت، گڵۆپەکان خامۆش دەکات و تەسلیمی بێدەنگی دەبێت',
+        labelEnglish: 'He turns off the glowing lamp, slumping onto the carpet in utter quiet darkness',
+        detailKurdish: 'کۆتاییەکی هونەری و قووڵ.',
+      },
+      {
+        id: 'awareness_message',
+        labelKurdish: 'سەیرکردنی ڕاستەوخۆی کامێرا بە پەیامێکی هۆشیاری پزیشکی (ئاو بخۆرەوە و پشوو بدە)',
+        labelEnglish: 'Direct eye contact to camera with health awareness cue on screen',
+        detailKurdish: 'بەسوودە بۆ بڵاوکردنەوە لە تیکتۆک و ئینستاگرام وەک کورتەڤیدیۆی هۆشیاری.',
+      },
+    ],
+  },
+];
+
+export const PRESET_PACKAGES = [
+  {
+    id: 'exam_night',
+    nameKurdish: '📚 سەرئێشەی شەوی تاقیکردنەوە',
+    nameEnglish: 'Exam Night Headache',
+    answers: {
+      setting: 'dark_student_room',
+      cause: 'study_burnout',
+      visual_style: 'dutch_handheld_blur',
+      action_conflict: 'searching_empty_blister',
+      kurdish_dialogue_style: 'pleading_desperate',
+      resolution_30s: 'dramatic_surrender',
+    },
+  },
+  {
+    id: 'migraine_crisis',
+    nameKurdish: '⚡ مایگرەینی لەناکاو و هاوار بۆ دایک',
+    nameEnglish: 'Sudden Migraine Attack',
+    answers: {
+      setting: 'dim_bathroom_mirror',
+      cause: 'severe_migraine_aura',
+      visual_style: 'macro_extreme_closeup',
+      action_conflict: 'cold_water_splash',
+      kurdish_dialogue_style: 'calling_family',
+      resolution_30s: 'sudden_help',
+    },
+  },
+  {
+    id: 'awareness_reel',
+    nameKurdish: '📱 کورتەڤیدیۆی هۆشیاری (Reel / TikTok)',
+    nameEnglish: 'Health Awareness Short',
+    answers: {
+      setting: 'kurdish_living_room',
+      cause: 'study_burnout',
+      visual_style: 'claustrophobic_noir',
+      action_conflict: 'blinding_phone_call',
+      kurdish_dialogue_style: 'exhausted_whisper',
+      resolution_30s: 'awareness_message',
+    },
+  },
+];
